@@ -1,0 +1,486 @@
+<html>
+	<head><title>LetsFuzzSVG</title></head>
+	<body>
+		<div id="svg-container" style="width:350; height:350; border:1px solid black"></div>
+		<div id="log-container" style="width:80; height:20%;">
+			<textarea id="log-area" cols="120" rows="10"></textarea>
+		</div>
+		<script>
+/*
+	IDEA: Loose
+		1. Create an array of svg elements as arr[i].parent = arr[i-1]
+		2. create a random element with random attributes.
+		3. replace a random element in array with the new element
+	IDEA: Strict 
+		2. Select a random element from array
+		3. Select a random child of it
+		4. create child element with random attributes.
+		5. replace old child with new.
+
+*/
+			var xmlns = "http://www.w3.org/2000/svg";
+			var boxWidth = 300;
+			var boxHeight = 300;
+			var svgCont = document.getElementById("svg-container");
+			var logArea = document.getElementById("log-area");
+			
+			var svgElem = document.createElementNS (xmlns, "svg");
+			svgElem.setAttributeNS (null, "viewBox", "0 0 " + boxWidth + " " + boxHeight);
+			svgElem.setAttributeNS (null, "width", boxWidth);
+			svgElem.setAttributeNS (null, "height", boxHeight);
+			svgElem.style.display = "block";
+			svgElem.id="svg-root";
+			svgCont.appendChild(svgElem);
+			
+			var inSVG = new Array(10);
+			
+			function doLog(str)
+			{
+				console.log(str);
+			}
+			
+			function addSVGElement(elem, index)
+			{
+				if (index >9 || index<0)
+					return false;
+				try{
+					if (index != 0)
+						inSVG[index-1].appendChild(elem);
+					inSVG[index]=elem;
+					doLog("\nadding @"+index);
+				}catch(e){
+					//console.error(e.message);
+					return false;
+				}
+				return true;
+			}
+			
+			function replaceSVGElement(elem, index)
+			{
+				if (index >9 || index<0)
+					return false;
+//				console.log("\ntry replace @ "+index);
+				try{
+					var replace = inSVG[index];
+					if(index>0){
+						inSVG[index-1].removeChild(replace);
+						inSVG[index-1].appendChild(elem);
+					}
+					
+					inSVG[index]=elem;
+					var children = replace.childNodes;
+					for(var i=0; i<children; i++)
+						elem.appendChild(children[i]);
+					
+					doLog("\nreplaced @"+index);
+				}catch(e){
+					//console.error(e.message);
+					return false;
+				}
+				return true;
+			}
+			
+			function removeSVGElement(index)
+			{
+				if (index >9 || index<0)
+					return false;
+				
+				try{
+					var elem = inSVG[index];
+					if(i >0)
+					{
+						var parent = inSVG[index-1];
+						parent.removeChild(elem);
+						for(var i =0;i<elem.childNodes.length;i++)
+							parent.appendChild(elem.childNodes[i]);
+					}
+					
+					for(var i = index; i<8;i++)
+						inSVG[i] = inSVG[i+1];
+					inSVG[9]=null;
+					
+					doLog("\nremoved @"+index);
+				}catch(e){
+					//console.error(e.message)
+					return false;
+				}
+				return true;
+			}
+			
+			function createSVGElement()
+			{
+				/*var elements = ["a", "altGlyph", "altGlyphDef", "altGlyphItem", "animate", "animateMotion", "animateTransform", "circle", "clipPath", "colorProfile",
+								"cursor", "defs", "definition-src", "desc", "ellipse", "feBlend", "feColorMatrix", "feComponenetTransfer","feComposite",
+								"feConvolveMatrix", "feDeffuseLighting", "feDisplacementMap","]*/
+				var new_elem = null;
+				try{
+					var elem_index = rand_in_range(0,svg_elements.elements.length);
+					console.log("\ncreating: "+svg_elements.elements[elem_index].name);
+					new_elem = document.createElementNS(svgNS.svg,svg_elements.elements[elem_index].name);
+					var attr_index = rand_in_range(0, svg_elements.elements[elem_index].attributes.length);
+					var attr_value = rand_value();
+					new_elem.setAttribute(svg_elements.elements[elem_index].attributes[attr_index], attr_value);
+					
+					doLog("\ncreated: <"+svg_elements.elements[elem_index].name+" "+svg_elements.elements[elem_index].attributes[attr_index]+"=\""+attr_value+"\"/>");
+				} catch(e){
+					new_elem=null
+					//console.error(e.message);
+				}
+				return new_elem;
+			}
+			
+			function rand_in_range(min,max)
+			{
+				return rand = Math.floor(rand_next()*(max-min)+min);
+			}
+			
+			function rand_value()
+			{
+				//var types = ['double','int','string','color','url','bool'] //type hint
+				var idx = rand_in_range(0,6)
+				
+				if(idx == 0)
+					return rand_next()*1000;
+				else if(idx == 1)
+					return rand_in_range(0,65536);
+				else if(idx == 2)
+				{
+					var str='';
+					for(var i=0; i < rand_in_range(0,65536);i++)
+						str += "A";
+					return str;
+				}
+				else if(idx == 3)
+					return "#"+Math.floor(rand_next()*100000000000).toString(16).substr(0,8);
+				else if(idx == 4)
+					return "http://www.example.com"
+				else if(idx == 5)
+					return (rand_in_range(0,2)?true:false)
+				else 
+					return 0
+			}
+			
+			function rand_next()
+			{
+				return Math.random();
+			}
+			
+			
+			function MainLoop()
+			{
+				var count = 100000;
+				while(true)
+				{
+					doLog("\nInitializing...");
+					
+					for(var i = 0; i<10;i++){
+						var elem = createSVGElement();
+						if(elem == null)
+							i--;
+						else
+						addSVGElement(elem,i);
+					}
+						
+					doLog("\nReplacing...");
+					for(var i = 0 ; i<count;i++){
+						var elem = createSVGElement();
+						if(elem == null)
+							i--;
+						else
+							replaceSVGElement(elem,rand_in_range(0,10));
+					}
+					
+					doLog("\nRemoving...")
+					for(var i=0;i<10;i++)
+						removeSVGElement(i);
+				}
+			}
+			
+			var svg_elements = {'elements':[
+				{'name': 'a',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'target', 'transform', 'typeof', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' : []},
+				{'name': 'altGlyph',
+					'attributes' :['x', 'y', 'dx', 'dy', 'glyphRef', 'format', 'rotate', 'xlink:href'],
+					'children' :[]},
+				{'name': 'altGlyphDef',
+					'attributes' :[],
+					'children' :['glyphRef', 'altGlyphItem']},
+				{'name':'altGyphItem',
+					'attributes' :[], 
+					'children' :['glyphRef']},
+				{'name':'animate',
+					'attributes' :['about', 'accumulate', 'additive', 'attributeName', 'attributeType', 'begin', 'by', 'calcMode', 'class', 'content', 'datatype', 'dur', 'end', 'fill', 'from', 'id', 'keySplines', 'keyTimes', 'max', 'min', 'property', 'rel', 'repeatCount', 'repeatDur', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'restart', 'rev', 'role', 'systemLanguage', 'to', 'typeof', 'values', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'],
+					'children' :['desc', 'handler', 'metadata', 'switch', 'title']},
+				{'name':'animateColor',
+					'attributes' :['about', 'accumulate', 'additive', 'attributeName', 'attributeType', 'begin', 'by', 'calcMode', 'class', 'content', 'datatype', 'dur', 'end', 'fill', 'from', 'id', 'keySplines', 'keyTimes', 'max', 'min', 'property', 'rel', 'repeatCount', 'repeatDur', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'restart', 'rev', 'role', 'systemLanguage', 'to', 'typeof', 'values', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'handler', 'metadata', 'switch', 'title']},
+				{'name':'animateMotion',
+					'attributes' :['about', 'accumulate', 'additive', 'begin', 'by', 'calcMode', 'class', 'content', 'datatype', 'dur', 'end', 'fill', 'from', 'id', 'keyPoints', 'keySplines', 'keyTimes', 'max', 'min', 'origin', 'path', 'property', 'rel', 'repeatCount', 'repeatDur', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'restart', 'rev', 'role', 'rotate', 'systemLanguage', 'to', 'typeof', 'values', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'handler', 'metadata', 'mpath', 'switch', 'title']},
+				{'name':'animateTransform',
+					'attributes' :['about', 'accumulate', 'additive', 'attributeName', 'attributeType', 'begin', 'by', 'calcMode', 'class', 'content', 'datatype', 'dur', 'end', 'fill', 'from', 'id', 'keySplines', 'keyTimes', 'max', 'min', 'property', 'rel', 'repeatCount', 'repeatDur', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'restart', 'rev', 'role', 'systemLanguage', 'to', 'type', 'typeof', 'values', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'handler', 'metadata', 'switch', 'title']},
+				{'name':'circle',
+					'attributes' :['about', 'class', 'content', 'cx', 'cy', 'datatype', 'fill', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'r', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'clipPath',
+					'attributes' :['transform', 'clipPathUnits'],
+					'children' :['desc', 'metadata', 'title', 'animate', 'animateColor', 'animateMotion', 'animateTransform', 'set', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect']},
+				{'name':'color-profile',
+					'attributes' :['local', 'name', 'rendering-intent', 'xlink:href'],
+					'children' :['desc', 'metadata', 'title']},
+				{'name':'cursor',
+					'attributes' :['x', 'y', 'xlink:href'],
+					'children' :['desc', 'metadata', 'title']},
+				{'name':'defs',
+					'attributes' :['about', 'class', 'content', 'datatype', 'fill', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['a', 'animate', 'animateColor', 'animateMotion', 'animateTransform', 'animation', 'audio', 'circle', 'defs', 'desc', 'discard', 'ellipse', 'font', 'font-face', 'foreignObject', 'g', 'handler', 'image', 'line', 'linearGradient', 'listener', 'metadata', 'path', 'polygon', 'polyline', 'prefetch', 'radialGradient', 'rect', 'script', 'set', 'solidColor', 'switch', 'text', 'textArea', 'title', 'use', 'video']},
+				{'name':'definition-src', // SVG Basic
+					'attributes' :['xlink:href'],
+					'children' :[]}, 
+				{'name':'desc',
+					'attributes' :['about', 'class', 'content', 'datatype', 'id', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['<text>']},
+				{'name':'ellipse',
+					'attributes' :['about', 'class', 'content', 'cx', 'cy', 'datatype', 'fill', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'rx', 'ry', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'feBlend',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'in2', 'mode'],
+					'children' :['animate', 'set']},
+				{'name':'feColorMatrix',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'order', 'kernelMatrix', 'divisor', 'bias', 'targetX', 'targetY', 'edgeMode', 'kernelUnitLength', 'preserveAlpha'],
+					'children' :['animate', 'set']},
+				{'name':'feComponentTransfer',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in'],
+					'children' :['feFuncA', 'feFuncB', 'feFuncG', 'feFuncR']},
+				{'name':'feComposite',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'in2','operator', 'k1', 'k2', 'k3', 'k4'],
+					'children' :['animate', 'set']},
+				{'name':'feConvolveMatrix',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'in2','operator', 'k1', 'k2', 'k3', 'k4'],
+					'children' :['animate', 'set']},
+				{'name':'feDiffuseLighting',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'surfaceScale', 'diffuseConstant', 'kernelUnitLength'],
+					'children' :['desc', 'metadata', 'title', 'fePointLight', 'feSpotLight']},
+				{'name':'feDisplacementMap',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'in2', 'scale', 'xChannelSelector', 'yChannelSelector'],
+					'children' :['animate', 'set']},
+				{'name':'feDistantLight',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'azimith', 'elevation'],
+					'children' :['animate', 'set']},
+				{'name':'feFlood',
+					'attributes' :['x', 'y', 'width', 'height', 'result'],
+					'children' :['animate', 'animateColor', 'set']},
+				{'name':'feFuncA',
+					'attributes' :['type', 'tableValues', 'slope', 'intercept', 'amplitude', 'exponent', 'offset'],
+					'children' :['animate', 'set']},
+				{'name':'feFuncB',
+					'attributes' :['type', 'tableValues', 'slope', 'intercept', 'amplitude', 'exponent', 'offset'],
+					'children' :['animate', 'set']},
+				{'name':'feFuncG',
+					'attributes' :['type', 'tableValues', 'slope', 'intercept', 'amplitude', 'exponent', 'offset'],
+					'children' :['animate', 'set']},
+				{'name':'feFuncR',
+					'attributes' :['type', 'tableValues', 'slope', 'intercept', 'amplitude', 'exponent', 'offset'],
+					'children' :['animate', 'set']},
+				{'name':'feGaussianBlur',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'stdDeviation'],
+					'children' :['animate', 'set']},
+				{'name':'feImage',
+					'attributes' :['preserveAspectRatio', 'xlink:href'],
+					'children' :['animate', 'animateTransform', 'set']},
+				{'name':'feMerge',
+					'attributes' :['x', 'y', 'width', 'height', 'result'],
+					'children' :['feMergeNode']},
+				{'name':'feMergeNode',
+					'attributes' :['in'],
+					'children' :['animate', 'set']},
+				{'name':'feMorphology',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'operator', 'radius'],
+					'children' :['animate', 'set']},
+				{'name':'feOffset',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in', 'dx', 'dy'],
+					'children' :['animate', 'set']},
+				{'name':'fePointLight',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'z'],
+					'children' :['animate', 'set']},
+				{'name':'feSpecularLighting',
+					'attributes' :[],
+					'children' :['desc', 'metadata', 'title', 'fePointLight', 'feSpotLight']},
+				{'name':'feSpotLight',
+					'attributes' :['x', 'y', 'z', 'pointsAtX', 'pointsAtY', 'pointsAtZ', 'specularExponent', 'limitingConeAngle'],
+					'children' :['animate', 'set']},
+				{'name':'feTile',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'in'],
+					'children' :['animate', 'set']},
+				{'name':'feTurbulence',
+					'attributes' :['x', 'y', 'width', 'height', 'result', 'baseFrequency', 'numOctaves', 'seed', 'stitchTiles', 'type'],
+					'children' :['animate', 'set']},
+				{'name':'filter',
+					'attributes' :['class', 'style', 'externalResourcesRequired', 'x', 'y', 'width', 'height', 'filterRes', 'filterUnits', 'primitiveUnits', 'xlink:href'],
+					'children' :['desc', 'metadata', 'title', 'feBlend', 'feColorMatrix', 'feComponentTransfer', 'feComposite', 'feConvolveMatrix', 'feDiffuseLighting', 'feDisplacementMap', 'feFlood', 'feGaussianBlur', 'feImage', 'feMerge', 'feMorphology', 'feOffset', 'feSpecularLighting', 'feTile', 'feTurbulence', 'animate', 'set']},
+				{'name':'font',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'horiz-adv-x', 'horiz-origin-x', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'font-face', 'glyph', 'hkern', 'metadata', 'missing-glyph', 'switch', 'title']},
+				{'name':'font-face',
+					'attributes' :['about', 'accent-height', 'alphabetic', 'ascent', 'bbox', 'cap-height', 'class', 'content', 'datatype', 'descent', 'externalResourcesRequired', 'font-family', 'font-stretch', 'font-style', 'font-variant', 'font-weight', 'hanging', 'id', 'ideographic', 'mathematical', 'overline-position', 'overline-thickness', 'panose-1', 'property', 'rel', 'resource', 'rev', 'role', 'slope', 'stemh', 'stemv', 'strikethrough-position', 'strikethrough-thickness', 'typeof', 'underline-position', 'underline-thickness', 'unicode-range', 'units-per-em', 'widths', 'x-height', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'font-face-src', 'metadata', 'switch', 'title']},
+				{'name':'font-face-format',
+					'attributes' :['string'],
+					'children' :[]},
+				{'name':'font-face-name',
+					'attributes' :['name'],
+					'children' :[]},				
+				{'name':'font-face-src',
+					'attributes' :['about', 'class', 'content', 'datatype', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'font-face-uri', 'metadata', 'switch', 'title']},
+				{'name':'font-face-uri',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'metadata', 'switch', 'title']},
+				{'name':'foreignObject',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'height', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'width', 'x', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y'], 
+					'children' :['desc', 'metadata', 'svg', 'switch', 'title']},
+				{'name':'g',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['a', 'animate', 'animateColor', 'animateMotion', 'animateTransform', 'animation', 'audio', 'circle', 'defs', 'desc', 'discard', 'ellipse', 'font', 'font-face', 'foreignObject', 'g', 'handler', 'image', 'line', 'linearGradient', 'listener', 'metadata', 'path', 'polygon', 'polyline', 'prefetch', 'radialGradient', 'rect', 'script', 'set', 'solidColor', 'switch', 'text', 'textArea', 'title', 'use', 'video']},
+				{'name':'glyph',
+					'attributes' :['about', 'arabic-form', 'class', 'content', 'd', 'datatype', 'glyph-name', 'horiz-adv-x', 'id', 'lang', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'unicode', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'metadata', 'switch', 'title']},
+				{'name':'glyphRef',
+					'attributes' :['x', 'y', 'dx', 'dy', 'glyphRef', 'format', 'xlink:href'],
+					'children' :[]},
+				{'name':'hkern',
+					'attributes' :['about', 'class', 'content', 'datatype', 'g1', 'g2', 'id', 'k', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'u1', 'u2', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'metadata', 'switch', 'title']},
+				{'name':'image',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'height', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'opacity', 'preserveAspectRatio', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'type', 'typeof', 'width', 'x', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'line',
+					'attributes' :['about', 'class', 'content', 'datatype', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'x1', 'x2', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y1', 'y2'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'linearGradient',
+					'attributes' :['about', 'class', 'content', 'datatype', 'gradientUnits', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'x1', 'x2', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y1', 'y2'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'metadata', 'set', 'stop', 'switch', 'title']},
+				{'name':'marker',
+					'attributes' :['viewBox', 'preserveAspectRatio', 'refX', 'refY', 'markerUnits', 'markerWidth', 'markerHeight', 'orient'],
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'set', 'desc', 'metadata', 'title', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'defs', 'g', 'svg', 'symbol', 'use', 'linearGradient', 'radialGradient', 'a', 'altGlyphDef', 'clipPath', 'color-profile', 'cursor', 'filter', 'font', 'font-face', 'foreignObject', 'image', 'marker', 'mask', 'pattern', 'script', 'style', 'switch', 'text', 'view']},
+				{'name':'mask',
+					'attributes' :['class', 'style', 'externalResourcesRequired', 'x', 'y', 'width', 'height', 'maskUnits', 'maskContentUnits'],
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'set', 'desc', 'metadata', 'title', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'defs', 'g', 'svg', 'symbol', 'use', 'linearGradient', 'radialGradient', 'a', 'altGlyphDef', 'clipPath', 'color-profile', 'cursor', 'filter', 'font', 'font-face', 'foreignObject', 'image', 'marker', 'mask', 'pattern', 'script', 'style', 'switch', 'text', 'view']},
+				{'name':'metadata',
+					'attributes' :['about', 'class', 'content', 'datatype', 'id', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['<text>']},
+				{'name':'missing-glyph',
+					'attributes' :['about', 'class', 'content', 'd', 'datatype', 'horiz-adv-x', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'metadata', 'switch', 'title']},
+				{'name':'mpath',
+					'attributes' :['about', 'class', 'content', 'datatype', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'metadata', 'switch', 'title']},
+				{'name':'path',
+					'attributes' :['about', 'class', 'content', 'd', 'datatype', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'pathLength', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'pattern',
+					'attributes' :['viewBox', 'preserveAspectRatio', 'x', 'y', 'width', 'height', 'patternUnits', 'patternContentUnits', 'patternTransform', 'xlink:href'],
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'set', 'desc', 'metadata', 'title', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'defs', 'g', 'svg', 'symbol', 'use', 'linearGradient', 'radialGradient', 'a', 'altGlyphDef', 'clipPath', 'color-profile', 'cursor', 'filter', 'font', 'font-face', 'foreignObject', 'image', 'marker', 'mask', 'pattern', 'script', 'style', 'switch', 'text', 'view']},
+				{'name':'polygon',
+					'attributes' :['about', 'class', 'content', 'datatype', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'points', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'polyline',
+					'attributes' :['about', 'class', 'content', 'datatype', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'points', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'radialGradient',
+					'attributes' :['about', 'class', 'content', 'cx', 'cy', 'datatype', 'gradientUnits', 'id', 'property', 'r', 'rel', 'resource', 'rev', 'role', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'metadata', 'set', 'stop', 'switch', 'title']},
+				{'name':'rect',
+					'attributes' :['about', 'class', 'content', 'datatype', 'fill', 'focusHighlight', 'focusable', 'height', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'rx', 'ry', 'systemLanguage', 'transform', 'typeof', 'width', 'x', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'script',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'id', 'property', 'rel', 'resource', 'rev', 'role', 'type', 'typeof', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['<text>', 'desc', 'metadata', 'switch', 'title']},
+				{'name':'set',
+					'attributes' :['about', 'attributeName', 'attributeType', 'begin', 'class', 'content', 'datatype', 'dur', 'end', 'fill', 'id', 'max', 'min', 'property', 'rel', 'repeatCount', 'repeatDur', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'restart', 'rev', 'role', 'systemLanguage', 'to', 'typeof', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['desc', 'handler', 'metadata', 'switch', 'title']},
+				{'name':'stop',
+					'attributes' :['about', 'class', 'content', 'datatype', 'id', 'offset', 'property', 'rel', 'resource', 'rev', 'role', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'metadata', 'set', 'switch', 'title']},
+				{'name':'style',
+					'attributes' :['type', 'media', 'title'],
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'set', 'desc', 'metadata', 'title', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'defs', 'g', 'svg', 'symbol', 'use', 'linearGradient', 'radialGradient', 'a', 'altGlyphDef', 'clipPath', 'color-profile', 'cursor', 'filter', 'font', 'font-face', 'foreignObject', 'image', 'marker', 'mask', 'pattern', 'script', 'style', 'switch', 'text', 'view']},
+/*				{'name':'svg',
+					'attributes' :['about', 'baseProfile', 'class', 'content', 'contentScriptType', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'height', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'playbackOrder', 'preserveAspectRatio', 'property', 'rel', 'resource', 'rev', 'role', 'snapshotTime', 'syncBehaviorDefault', 'syncToleranceDefault', 'timelineBegin', 'typeof', 'version', 'viewBox', 'width', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'zoomAndPan'], 
+					'children' :['a', 'animate', 'animateColor', 'animateMotion', 'animateTransform', 'animation', 'audio', 'circle', 'defs', 'desc', 'discard', 'ellipse', 'font', 'font-face', 'foreignObject', 'g', 'handler', 'image', 'line', 'linearGradient', 'listener', 'metadata', 'path', 'polygon', 'polyline', 'prefetch', 'radialGradient', 'rect', 'script', 'set', 'solidColor', 'switch', 'text', 'textArea', 'title', 'use', 'video']},
+*/				{'name':'switch',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :[]},
+				{'name':'symbol',
+					'attributes' :['preserveAspectRatio', 'viewBox'],
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'set', 'desc', 'metadata', 'title', 'circle', 'ellipse', 'line', 'path', 'polygon', 'polyline', 'rect', 'defs', 'g', 'svg', 'symbol', 'use', 'linearGradient', 'radialGradient', 'a', 'altGlyphDef', 'clipPath', 'color-profile', 'cursor', 'filter', 'font', 'font-face', 'foreignObject', 'image', 'marker', 'mask', 'pattern', 'script', 'style', 'switch', 'text', 'view']},
+				{'name':'text',
+					'attributes' :['about', 'class', 'content', 'datatype', 'editable', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'rotate', 'systemLanguage', 'transform', 'typeof', 'x', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y'], 
+					'children' :['<text>', 'a', 'animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title', 'tspan']},
+				{'name':'textPath',
+					'attributes' :[],
+					'children' : []},
+				{'name':'title',
+					'attributes' :['about', 'class', 'content', 'datatype', 'id', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :['<text>']},
+				{'name':'tref',
+					'attributes' :[],
+					'children' : []},
+				{'name':'tspan',
+					'attributes' :['about', 'class', 'content', 'datatype', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'typeof', 'xml:base', 'xml:id', 'xml:lang', 'xml:space'], 
+					'children' :[]},
+				{'name':'use',
+					'attributes' :['about', 'class', 'content', 'datatype', 'externalResourcesRequired', 'focusHighlight', 'focusable', 'id', 'nav-down', 'nav-down-left', 'nav-down-right', 'nav-left', 'nav-next', 'nav-prev', 'nav-right', 'nav-up', 'nav-up-left', 'nav-up-right', 'property', 'rel', 'requiredExtensions', 'requiredFeatures', 'requiredFonts', 'requiredFormats', 'resource', 'rev', 'role', 'systemLanguage', 'transform', 'typeof', 'x', 'xlink:actuate', 'xlink:arcrole', 'xlink:href', 'xlink:role', 'xlink:show', 'xlink:title', 'xlink:type', 'xml:base', 'xml:id', 'xml:lang', 'xml:space', 'y'], 
+					'children' :['animate', 'animateColor', 'animateMotion', 'animateTransform', 'desc', 'discard', 'handler', 'metadata', 'set', 'switch', 'title']},
+				{'name':'view',
+					'attributes' :['viewBox', 'preserveAspectRatio', 'zoomAndPan', 'viewTarget'],
+					'children' :['desc', 'metadata', 'title']},
+				{'name':'vkern',
+					'attributes' :['u1', 'g1', 'u2', 'g2', 'k'],
+					'children' :[]}
+			]};
+
+			var svgNS = {
+				'svg' : 'http://www.w3.org/2000/svg',
+				'xlink' : 'http://www.w3.org/1999/xlink',
+				'xhtml' : 'http://www.w3.org/1999/xhtml',
+				'event' : 'http://www.w3.org/2001/xml-events'
+			};
+
+			var events = [
+				'onunload', 'onabort', 'onerror', 'onresize', 'onscroll', 'onzoom',
+				'onfocusin', 'onfocusout', 'onactivate', 'onclick', 'onmousedown', 
+				'onmouseup', 'onmouseover', 'onmousemove', 'onmouseout', 'onload'];
+			
+			var colors =[	'red', 'blue', 'green', 'yellow'];
+
+			var svg_univ_attrs = [
+				'alignment-baseline', 'baseline-shift', 'clip', 'clip-path', 
+				'clip-rule', 'color', 'color-interpolation', 
+				'color-interpolation-filters', 'color-profile', 'color-rendering', 
+				'cursor', 'direction', 'display', 'dominant-baseline', 
+				'enable-background', 'fill', 'fill-opacity', 'fill-rule', 'filter', 
+				'flood-color', 'flood-opacity', 'font-family', 'font-size', 
+				'font-size-adjust', 'font-stretch', 'font-style', 'font-variant', 
+				'font-weight', 'glyph-orientation-horizontal', 
+				'glyph-orientation-vertical', 'image-rendering', 'kerning', 
+				'letter-spacing', 'lighting-color', 'marker-end', 'marker-mid', 
+				'marker-start', 'mask', 'opacity', 'overflow', 'pointer-events', 
+				'shape-rendering', 'stop-color', 'stop-opacity', 'stroke', 
+				'stroke-dasharray', 'stroke-dashoffset', 'stroke-linecap', 
+				'stroke-linejoin', 'stroke-miterlimit', 'stroke-opacity', 
+				'stroke-width', 'text-anchor', 'text-decoration', 'text-rendering', 
+				'unicode-bidi', 'visibility', 'word-spacing', 'writing-mode', 
+				'class', 'style', 'externalResourcesRequired', 'id', 'xml:base', 
+				'xml:lang', 'xml:space', 'requiredFeatures', 'requiredExtensions', 
+				'systemLanguage'];
+
+			var xlink_attrs = ['xlink:href', 'xlink:show', 'xlink:actuate', 
+				'xlink:type', 'xlink:role', 'xlink:arcrole', 'xlink:title'];
+			
+			MainLoop();
+		</script>
+	</body>
+</html>
